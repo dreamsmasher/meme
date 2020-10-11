@@ -1,10 +1,25 @@
-module Parse where
+{-#LANGUAGE OverloadedStrings #-}
+module Parse (
+    LispVal (..),
+    parseExpr,
+    readExpr,
+    showTrace,
+    parseTest,
+    parseNumber,
+    parseAtom,
+    parserTrace,
+    parserTraced,
+    parseString
+) where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
+import Text.Parsec.Combinator
 import Control.Monad
 import Numeric (readOct, readHex)
 import Data.Char
 import Debug.Trace
+import Text.Parsec.Token 
+import Text.Parsec.Language(haskellDef)
 
 data LispVal = Atom String
              | List [LispVal]
@@ -12,48 +27,66 @@ data LispVal = Atom String
              | Number Integer
              | String String
              | Character Char 
-             | Bool Bool deriving (Eq, Show)
+             | TypeProc String 
+             | Bool Bool deriving (Eq)
+
+instance Show LispVal where
+    show (Atom s) = s
+    show (List lst) = "(" ++ unwordsList lst ++ ")"
+    show (DottedList h t) = "(" ++ unwordsList h ++ "." ++ show t ++ ")"
+    show (Number n) = show n
+    show (String c) = "\"" ++ c ++ "\""
+    show (Character c) = [c]
+    show (TypeProc t) = t ++ "?"
+    show (Bool b) = if b then "#t" else "#f"
 
 data NumPrecision = Exact | Inexact | Short | Single | Double | Long deriving (Eq, Ord, Enum, Show)
+
+unwordsList :: [LispVal] -> String
+unwordsList = unwords . map show
 
 backslash :: Char
 backslash = '\\'
 
 symbols :: Parser Char
-symbols = oneOf "!$%&|*+=/:<=>?@^_~\""
+symbols = oneOf "!$%&|-*+=/:<=>?@^_~\""
 
-readExpr :: String -> String
+readExpr :: String -> LispVal
 readExpr input = case parse parseExpr "lisp" input of
-    Left err -> "No match: " <> show err
-    Right val -> "Found value: " <> show val
+    Left err -> String $ "No match: " <> show err
+    --Right val -> "Found value: " <> show val
+    Right val -> val
+
+-- | our main parsing function
+parseExpr :: Parser LispVal
+parseExpr = parseString 
+        <|> parseProc
+        <|> parseAtom 
+        <|> parseNumber 
+        <|> parseBool 
+        <|> parseChar 
+        <|> parseQuoted 
+        <|> do char '('
+               x <- try parseList <|> parseDottedList
+               char ')'
+               return x
 
 
 spaces :: Parser ()
 spaces = skipMany1 space
+showTrace x = trace (show x) x
 
+delims :: (Char, Char) -> Parser LispVal -> Parser LispVal
+delims (l, r) = between (char l) (char r)
 
-showtrace x = trace (show x) x
+quotes, parens, brackets :: Parser LispVal -> Parser LispVal
+quotes = delims ('"', '"')
+parens = delims ('(', ')')
+brackets = delims ('[', ']')
 
-escaped :: Parser Char
-escaped = do
-    char '\\'
-    c <- oneOf "\\\"nrt"
-    return $ case c of
-           '\\' ->  c
-           '"'  ->  c
-           'n'  ->  '\n'
-           'r'  -> '\r'
-           't'  -> '\t'
-
-
-
-
-parseString :: Parser LispVal
-parseString = do
-    try $ char '"'
-    s <- showtrace <$> many (escaped <|> anyChar)
-    char '"'
-    return $ String s
+parseString :: Parser LispVal -- this was beyond annoying
+parseString = stringLiteral lexer >>= \s -> return (String s)
+    where lexer = makeTokenParser haskellDef
 
 parseChar :: Parser LispVal
 parseChar = do  
@@ -69,40 +102,54 @@ parseChar = do
                               _ -> head o)
 
 
+parseProc :: Parser LispVal
+parseProc = try $ do
+    s <- many letter
+    char '?'
+    return $ TypeProc s
+
 parseBool :: Parser LispVal
-parseBool = try $ char '#' >> oneOf "ft" >>= \b -> (return . Bool) (case b of
-                                                                'f' -> False
-                                                                't' -> True)
+parseBool = try $ char '#' >> oneOf "ft" >>= 
+    \b -> (return . Bool) (case b of
+                            'f' -> False
+                            't' -> True)
+
 parseAtom :: Parser LispVal
 parseAtom = try $ do
-    first <- letter <|> symbols
-    rest <- many (letter <|> digit <|> symbols)
+    first <- (try letter) <|> symbols
+    rest <- many (try letter <|> try digit <|> symbols)
     pure $ Atom (first : rest)
         
 
-returnNum :: (String -> [(Integer, String)]) -> String -> Parser LispVal
-returnNum f = return . Number . fst . head . f
+getNum :: (String -> [(Integer, String)]) -> String -> Integer
+getNum f = fst . head . f
 
-parseHex :: Parser LispVal
-parseHex =  string "#x" >> many1 digit >>= returnNum readHex
+parseHex :: Parser Integer
+parseHex =  string "#x" >> many1 digit >>= \d ->  return (getNum readHex d)
 
-parseOct :: Parser LispVal
-parseOct =  string "#o" >> many1 digit >>= returnNum readOct
+parseOct :: Parser Integer
+parseOct =  string "#o" >> many1 digit >>= \o -> return (getNum readOct o)
 
 readBin :: (Num a) => String -> a
 readBin = sum . zipWith (*) (iterate (* 2) 1) . reverse . map (fromIntegral . digitToInt)
 
-parseBin :: Parser LispVal
-parseBin =  string "#b" >> many1 digit >>= \d -> (return . Number . readBin) d
+parseBin :: Parser Integer
+parseBin =  string "#b" >> many1 digit >>= \b -> return  (readBin b)
 
-parseDec :: Parser LispVal
-parseDec =  read <$> choice >>= return . Number
+parseDec :: Parser Integer
+parseDec =  read <$> choice >>= return 
     where choice = try (string "#d" >> many1 digit) <|> many1 digit -- helps avoid clashes with Atoms
 
-
 parseNumber :: Parser LispVal
-parseNumber = try parseDec <|> try parseBin <|> try parseOct <|> try parseHex
-
+parseNumber = do
+    sign <- optionMaybe (char '-')
+    let
+        sign' = case sign of
+            Nothing -> 1
+            Just _  -> (-1)
+    n <- (try parseDec <|> try parseBin <|> try parseOct <|> try parseHex)
+    return $ Number (sign' * n)
+    --return (Number (sign' * n))
 
 parsePrecision :: Parser NumPrecision --TODO : add support for floats, leaving this for later
 parsePrecision = do
@@ -120,18 +167,15 @@ parsePrecision = do
 sepNumOrAtom :: Parser LispVal
 sepNumOrAtom = undefined
 
-parseExpr :: Parser LispVal
-parseExpr = parseNumber <|> parseAtom <|> parseString <|> parseBool <|> parseChar <|> parseQuoted <|> do char '('
-                                                                                                         x <- try parseList <|> parseDottedList
-                                                                                                         char ')'
-                                                                                                         return x
-
+                                                                                                         
+{-
 parseParens :: Parser LispVal
 parseParens = do
     try $ char ')'
     x <- try parseList <|> parseDottedList
     char '('
     return x
+    -}
 
 
 parseList :: Parser LispVal

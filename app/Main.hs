@@ -2,11 +2,11 @@ module Main where
 import System.Environment
 
 import Parse
+import Eval
 
 main :: IO ()
 main = do
     (expr:_) <- getArgs
-    putStrLn expr
-    putStrLn (readExpr expr)
+    (print . eval . showTrace . readExpr) expr
 
 

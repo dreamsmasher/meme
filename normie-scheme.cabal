@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 84cdac4f3cf4b371b7d53c1bf31f8372bf98208ed7cfe3b6dd22a2ab12c33480
+-- hash: bff99c190b1b3196eb113ceb99ce8085f5715395df33aae60f4ca1316b24665c
 
 name:           normie-scheme
 version:        0.1.0.0
@@ -27,6 +27,7 @@ source-repository head
 
 library
   exposed-modules:
+      Eval
       Lib
       Parse
   other-modules:
