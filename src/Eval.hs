@@ -59,6 +59,7 @@ matchProc s = f
                             _      -> bf
                             
         "eqv"     -> Right g
+        -- TODO: figure out a better way to do this...
           
 deconstruct :: LispVal -> a        
 deconstruct lv = case lv of
