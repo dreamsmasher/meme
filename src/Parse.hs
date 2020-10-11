@@ -4,7 +4,6 @@ import Text.ParserCombinators.Parsec hiding (spaces)
 import Control.Monad
 import Numeric (readOct, readHex)
 import Data.Char
-import Data.Maybe
 import Debug.Trace
 
 data LispVal = Atom String
@@ -19,6 +18,7 @@ data NumPrecision = Exact | Inexact | Short | Single | Double | Long deriving (E
 
 backslash :: Char
 backslash = '\\'
+
 symbols :: Parser Char
 symbols = oneOf "!$%&|*+=/:<=>?@^_~\""
 
@@ -59,7 +59,7 @@ parseChar :: Parser LispVal
 parseChar = do  
         try $ string ['#', backslash]
         -- o <- many anyChar >>= \x -> oneOf (symbols <|> eof) >> return x
-        o <- try (string "space" <|> string "newline") <|> do
+        o <- try (string "space") <|> try (string "newline") <|> do
             x <- anyChar
             notFollowedBy alphaNum
             return [x]
