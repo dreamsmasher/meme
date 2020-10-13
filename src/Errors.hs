@@ -1,14 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
 module Errors (
     LispError (..),
+    ThrowsError,
+    extractValue, 
     trapError
     ) where
 
 import Control.Monad.Except
 import Text.ParserCombinators.Parsec.Error
 
-import Parse
-import Eval
+import Types
 
 data LispError = NumArgs Integer [LispVal]
                | TypeMismatch String LispVal
@@ -20,11 +21,11 @@ data LispError = NumArgs Integer [LispVal]
 
 instance Show LispError where
     show = \case 
-        (UnboundVar msg var) -> msg <> ": " <> var
-        (BadSpecialForm msg frm) -> msg <> ": " <> show frm
-        (NotFunction msg func) -> msg <> ": " <> func
-        (NumArgs exp fnd) -> "Expected " <> show exp <> " args; found values " <> unwordsList fnd
-        (TypeMismatch exp fnd) -> "Invalid type: expected " <> exp <> ", found " <> show fnd
+        (UnboundVar msg var) -> "UnboundVar" <> msg <> ": " <> var
+        (BadSpecialForm msg frm) -> "BadSpecialForm " <> msg <> ": " <> show frm
+        (NotFunction msg func) -> "NotFunction" <> msg <> ": " <> func
+        (NumArgs exp fnd) -> "NumArgs: expected " <> show exp <> " args; found values " <> unwordsList fnd
+        (TypeMismatch exp fnd) -> "TypeMismatch: Invalid type: expected " <> exp <> ", found " <> show fnd
         (Parser parseErr) -> "Parse error at " <> show parseErr
 
 type ThrowsError = Either LispError

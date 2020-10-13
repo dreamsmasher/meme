@@ -13,28 +13,37 @@ module Eval (
 import Text.ParserCombinators.Parsec ()
 import Control.Applicative
 import Parse
+import Types
+import Errors
+import Control.Monad.Except
 import Debug.Trace
 
-eval :: LispVal -> LispVal
-eval (List [Atom "quote", val]) = val
-eval (List (Atom func : args)) = apply func (fmap eval args)
-eval (List (TypeProc t : args)) = apply t (fmap eval args)
-eval val@(String _) = val
-eval val@(Number _) = val
-eval val@(Bool _) = val
-eval val@(Character _) = val
-eval (TypeProc t) = String t
-eval incorrect = throwError $ BadSpecialForm "Unrecognized special form" incorrect
+eval :: LispVal -> ThrowsError LispVal
+eval = \case
+    (List [Atom "quote", val]) -> return val
+    (List (Atom func : args)) -> mapM eval args >>= apply func
+    -- (List (TypeProc t : args)) -> mapM eval args >>= apply t
+    val@(String _) -> return val
+    val@(Number _) -> return val
+    val@(Atom _)  -> return val -- probably gonna break something
+    val@(Bool _) -> return val
+    val@(Character _) -> return val
+    incorrect -> throwError $ BadSpecialForm "Unrecognized special form" incorrect
 
-evalExpr :: String -> LispVal
-evalExpr = eval . readExpr
-apply :: String -> [LispVal] -> LispVal
-apply func args = maybe (Bool False) ($ args) $ lookup func primitives 
+evalExpr :: String -> ThrowsError LispVal
+evalExpr = eval . extractValue . readExpr
 
-numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
-numericBinOp f = (Number . foldl1 f . fmap unpackNum)
+apply :: String -> [LispVal] -> ThrowsError LispVal
+apply func args = maybe funcErr ($ args) (lookup func primitives)
+    where funcErr = throwError $ NotFunction "Unrecognized primitive function args" func
 
-primitives :: [(String, [LispVal] -> LispVal)]
+numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> ThrowsError LispVal
+numericBinOp f = \case
+        []   -> throwError $ NumArgs 2 []
+        [x]  -> throwError $ NumArgs 2 [x]
+        args -> mapM unpackNum args >>= return . Number. foldl1 f
+
+primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
 primitives = [
     ("+", numericBinOp (+)),
     ("-", numericBinOp (-)),
@@ -43,26 +52,63 @@ primitives = [
     ("mod", numericBinOp mod),
     ("remainder", numericBinOp rem),
     ("quotient", numericBinOp quot),
+    ("=", numBoolBinOp (==)),
+    ("/=", numBoolBinOp (/=)),
+    ("<", numBoolBinOp (<)),
+    (">", numBoolBinOp (>)),
+    ("<=", numBoolBinOp (<=)),
+    (">=", numBoolBinOp (>=)),
+    ("&&", boolBoolBinOp (&&)),
+    ("||", boolBoolBinOp (||)),
+    ("string=?", strBoolBinOp (==)),
+    ("string<?", strBoolBinOp (<)),
+    ("string>?", strBoolBinOp (>)),
+    ("string<=?", strBoolBinOp (<=)),
+    ("string>=?", strBoolBinOp (>=)),
     ("boolean?", booleanUnOp (matchType (Bool True))),
     ("list?"   , booleanUnOp (matchType (List []) )),
     ("number?" , booleanUnOp (matchType (Number 0))),
+    ("string?" , booleanUnOp (matchType (String ""))),
     ("symbol?" , booleanUnOp (matchSymbol)),
     ("char?"   , booleanUnOp (matchType (Character 'a'))),
     ("pair?"   , booleanUnOp (matchAny [List [], DottedList [] (Bool True)]))
- ]
+    ]
 
-booleanUnOp :: (LispVal -> LispVal) -> [LispVal] -> LispVal
-booleanUnOp f [l@(List _)] = f l
-booleanUnOp f [n@(Number _)] = f n
-booleanUnOp f [a@(Atom _)] = f a
-booleanUnOp f [d@(DottedList _ _)] = f d
-booleanUnOp f [c@(Character _)] = f c
-booleanUnOp _ v = error $ "Incorrect argument count in call " ++ show v
+booleanUnOp :: (LispVal -> LispVal) -> [LispVal] -> ThrowsError LispVal
+booleanUnOp f = \case
+    [x] -> return $ f x
+    v   -> throwError $ NumArgs 1 v
+    {-
+    [l@(List _)] -> return $ f l
+    [n@(Number _)] -> return $ f n
+    [a@(Atom _)] -> return $ f a
+    [s@(String _)] -> return $ f s
+    [d@(DottedList _ _)] -> return $ f d
+    [c@(Character _)] -> return $ f c
+    v -> throwError $ NumArgs 1 v
+    -}
+
+boolBinOp :: (LispVal -> ThrowsError a) -> (a -> a -> Bool) -> [LispVal] -> ThrowsError LispVal
+boolBinOp unpacker op = \case
+                        [x, y] -> do
+                            l <- unpacker x
+                            r <- unpacker y
+                            return (Bool $ op l  r)
+                        args -> throwError $ NumArgs 2 args
+
+numBoolBinOp :: (Integer -> Integer -> Bool) -> [LispVal] -> ThrowsError LispVal
+numBoolBinOp = boolBinOp unpackNum
+
+boolBoolBinOp :: (Bool -> Bool -> Bool) -> [LispVal] -> ThrowsError LispVal
+boolBoolBinOp = boolBinOp unpackBool
+
+strBoolBinOp :: (String -> String -> Bool) -> [LispVal] -> ThrowsError LispVal
+strBoolBinOp = boolBinOp unpackStr
 
 matchSymbol :: LispVal -> LispVal
 matchSymbol (Atom _) = Bool True
 matchSymbol (List [Atom _]) = Bool True
-matchSymbol x = trace (show x) $ Bool False
+matchSymbol x = Bool False
          
 matchAny :: [LispVal] -> LispVal -> LispVal
 matchAny fs = Bool . any (\(Bool b) -> b) . liftA2 matchType fs . pure
@@ -80,12 +126,30 @@ matchType a = Bool . matchType' a
         matchType' _ _ = False
 
 
-unpackNum :: LispVal -> Integer
-unpackNum lv = case lv of
-    Number n -> n
-    _        -> 0
+unpackNum :: LispVal -> ThrowsError Integer
+unpackNum = \case
+    Number n -> return n
+    String s -> let parsed = reads s in 
+                    if null parsed
+                       then throwError $ TypeMismatch "number" $ String s
+                       else return . fst. head $ parsed
+    List [n] -> unpackNum n
+    nAn      -> throwError $ TypeMismatch "number" nAn
 
-         -- atom    -> atom    -> bool
+
+unpackStr :: LispVal -> ThrowsError String
+unpackStr = \case
+    (String s) -> return s
+    (Number s) -> return $ show s
+    (Bool s)   -> return $ show s
+    notaStr    -> throwError $ TypeMismatch "string" notaStr
+
+unpackBool :: LispVal -> ThrowsError Bool
+unpackBool = \case
+    (Bool b) -> return b
+    notaBool -> throwError $ TypeMismatch "bool" notaBool
+
+-- atom    -> atom    -> bool
 eqSymbol :: LispVal -> LispVal -> LispVal
 eqSymbol (Atom a) (Atom b) = Bool (a == b)
 

@@ -15,6 +15,7 @@ module Parse (
 
 import Text.ParserCombinators.Parsec hiding (spaces)
 import Text.Parsec.Combinator
+import Control.Monad.Except
 import Control.Monad
 import Numeric (readOct, readHex)
 import Data.Char
@@ -22,37 +23,15 @@ import Debug.Trace
 import Text.Parsec.Token 
 import Text.Parsec.Language(haskellDef)
 
-import Errors
+import Errors 
+import Types
 
-data LispVal = Atom String
-             | List [LispVal]
-             | DottedList [LispVal] LispVal
-             | Number Integer
-             | String String
-             | Character Char 
-             | TypeProc String 
-             | Bool Bool deriving (Eq)
-
-instance Show LispVal where
-    show (Atom s) = s
-    show (List lst) = "(" ++ unwordsList lst ++ ")"
-    show (DottedList h t) = "(" ++ unwordsList h ++ "." ++ show t ++ ")"
-    show (Number n) = show n
-    show (String c) = "\"" ++ c ++ "\""
-    show (Character c) = [c]
-    show (TypeProc t) = t
-    show (Bool b) = if b then "#t" else "#f"
-
-data NumPrecision = Exact | Inexact | Short | Single | Double | Long deriving (Eq, Ord, Enum, Show)
-
-unwordsList :: [LispVal] -> String
-unwordsList = unwords . map show
 
 backslash :: Char
 backslash = '\\'
 
 symbols :: Parser Char
-symbols = oneOf "!$%&|-*+=/:<=>?@^_~\""
+symbols = oneOf "!$%&|-*+=/:<=>?@^_~"
 
 readExpr :: String -> ThrowsError LispVal
 readExpr input = case parse parseExpr "lisp" input of
@@ -61,10 +40,11 @@ readExpr input = case parse parseExpr "lisp" input of
 
 -- | our main parsing function
 parseExpr :: Parser LispVal
-parseExpr = parseString 
-        <|> parseProc
+parseExpr = 
+        -- <|> parseProc
+        parseNumber 
         <|> parseAtom 
-        <|> parseNumber 
+        <|> parseString 
         <|> parseBool 
         <|> parseChar 
         <|> parseQuoted 
@@ -76,6 +56,8 @@ parseExpr = parseString
 
 spaces :: Parser ()
 spaces = skipMany1 space
+
+showTrace :: (Show a) => a -> a -- remove later
 showTrace x = trace (show x) x
 
 delims :: (Char, Char) -> Parser LispVal -> Parser LispVal
@@ -87,7 +69,7 @@ parens = delims ('(', ')')
 brackets = delims ('[', ']')
 
 parseString :: Parser LispVal -- this was beyond annoying
-parseString = stringLiteral lexer >>= \s -> return (String s)
+parseString = try $ stringLiteral lexer >>= return . String
     where lexer = makeTokenParser haskellDef
 
 parseChar :: Parser LispVal
@@ -102,7 +84,6 @@ parseChar = do
                               "newline" -> '\n'
                               "space" -> ' '
                               _ -> head o)
-
 
 parseProc :: Parser LispVal
 parseProc = try $ do
@@ -143,7 +124,7 @@ parseDec =  read <$> choice >>= return
     where choice = try (string "#d" >> many1 digit) <|> many1 digit -- helps avoid clashes with Atoms
 
 parseNumber :: Parser LispVal
-parseNumber = do
+parseNumber = try $ do
     sign <- optionMaybe (char '-')
     let
         sign' = case sign of
@@ -151,34 +132,22 @@ parseNumber = do
             Just _  -> (-1)
     n <- (try parseDec <|> try parseBin <|> try parseOct <|> try parseHex)
     return $ Number (sign' * n)
-    --return (Number (sign' * n))
 
-parsePrecision :: Parser NumPrecision --TODO : add support for floats, leaving this for later
-parsePrecision = do
-    p <- optionMaybe (oneOf "eisdfl") 
-    case p of 
-      Nothing -> return Exact
-      Just n  -> return $ case n of
-                   'e' -> Exact
-                   'i' -> Inexact
-                   's' -> Short
-                   'f' -> Single
-                   'd' -> Double
-                   'l' -> Long
+-- parsePrecision :: Parser NumPrecision --TODO : add support for floats, leaving this for later
+-- parsePrecision = do
+--     p <- optionMaybe (oneOf "eisdfl") 
+--     case p of 
+--       Nothing -> return Exact
+--       Just n  -> return $ case n of
+--                    'e' -> Exact
+--                    'i' -> Inexact
+--                    's' -> Short
+--                    'f' -> Single
+--                    'd' -> Double
+--                    'l' -> Long
 
 sepNumOrAtom :: Parser LispVal
 sepNumOrAtom = undefined
-
-                                                                                                         
-{-
-parseParens :: Parser LispVal
-parseParens = do
-    try $ char ')'
-    x <- try parseList <|> parseDottedList
-    char '('
-    return x
-    -}
-
 
 parseList :: Parser LispVal
 parseList = liftM List $ sepBy parseExpr spaces
