@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, LambdaCase #-}
 module Environment (
     LispVal (..),
     NumPrecision (..),
@@ -14,6 +14,7 @@ module Environment (
     setVar,
     defineVar,
     getVar,
+    bindVars,
     extractValue,
 
 
@@ -21,7 +22,9 @@ module Environment (
 
 
 import Control.Monad.Except
+import Control.Exception
 import Text.ParserCombinators.Parsec.Error
+import GHC.IO.Handle
 
 
 import Data.IORef
@@ -47,6 +50,8 @@ data LispVal = Atom String
               , varArg :: (Maybe String)
               , body :: [LispVal]
               , closure :: Env} 
+             | IOFunc ([LispVal] -> IOThrowsError LispVal)
+             | Port Handle
 
 instance Eq LispVal where
     Atom a == Atom b = a == b
@@ -69,6 +74,15 @@ instance Show LispVal where
     show (Character c) = [c]
     -- show (TypeProc t) = t
     show (Bool b) = if b then "#t" else "#f"
+    show (PrimitiveFunc _) = "<primitive>"
+    show (Func a v b c) =
+        "(lambda (" <> unwords (map show a) <> 
+            (case v of 
+               Nothing -> ""
+               Just va -> " . " <> va) <> ") ...)"
+    show (Port _) = "<IO port>"
+    show (IOFunc _) = "<IO Primitive>"
+
 
 data NumPrecision = Exact
                   | Inexact 
@@ -103,7 +117,7 @@ data Unpack = forall a. Eq a => Unpack (LispVal -> ThrowsError a)
                  --} -- hahahaha
 
 trapError :: (MonadError a m, Show a) => m String -> m String
-trapError action = catchError action (return . show)
+trapError action = catchError action (pure . show)
 
 extractValue :: ThrowsError a -> a
 extractValue (Right val) = val
@@ -157,3 +171,17 @@ bindVars :: Env -> [(String, LispVal)] -> IO Env
 bindVars  envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
     where extendEnv bindings env = liftM (++ env) (mapM addBind bindings)
           addBind (var, val) = newIORef val >>= \ref -> pure (var, ref)
+
+ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
+ioPrimitives = [
+            ("apply", applyProc),
+            ("open-input-file", makePort ReadMode),
+            ("open-output-file", makePort WriteMode),
+            ("close-input-port", closePort)
+            ("close-output-port", closePort)
+            ("read", readProc),
+            ("write", writeProc),
+            ("read-contents", readContents),
+            ("read-all", readAll)
+               ]
+

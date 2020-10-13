@@ -1,4 +1,4 @@
-{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification, LambdaCase #-}
 
 module Eval (
     eval, 
@@ -7,7 +7,8 @@ module Eval (
     symbolToString,
     stringToSymbol,
     matchType,
-    primitives
+    primitives,
+    bindPrimitives,
 
 ) where
 
@@ -38,22 +39,74 @@ eval env = \case
     (List (Atom "or": args)) -> evalOr env args
     (List [Atom "set!", Atom var, form]) -> eval env form >>= setVar env var
     (List [Atom "define", Atom var, form]) -> eval env form >>= defineVar env var
-    (List (Atom func : args)) -> mapM (eval env) args >>= liftThrows . apply func
-    -- (List (TypeProc t : args)) -> mapM eval args >>= apply t
+    (List (Atom "define" : List (Atom var : params) : body)) ->
+        makeNormalFunc env params body >>= defineVar env var
+        -- e.g. (define (succ n) (+ 1 n))
+    (List (Atom "define" : DottedList (Atom var : params) varArgs : body)) ->
+        makeVarArgs varArgs env params body >>= defineVar env var
+    (List (Atom "lambda" : List params : body)) ->
+        makeNormalFunc env params body
+        -- e.g. ((lambda n) (+ n 1) 3) -> 4
+    (List (Atom "lambda" : DottedList params varArgs : body)) ->
+        makeVarArgs varArgs env params body
+    (List (Atom "lambda" : varArgs@(Atom _) : body)) ->
+        makeVarArgs varArgs env [] body
+
+    (List (func : args)) -> do
+        f <- eval env func
+        argVals <- mapM (eval env) args
+        apply f argVals
+
     incorrect -> throwError $ BadSpecialForm "Unrecognized special form" incorrect
 
 evalExpr :: Env -> String -> IOThrowsError LispVal
 evalExpr env = eval env . extractValue . readExpr
 
+makeFunc :: Maybe String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeFunc v e p b = pure $ Func (fmap show p) v b e
+
+makeNormalFunc :: Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeNormalFunc = makeFunc Nothing
+
+makeVarArgs :: LispVal -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
+makeVarArgs = makeFunc . Just . show
+    {-
 apply :: String -> [LispVal] -> ThrowsError LispVal
 apply func args = maybe funcErr ($ args ) (lookup func primitives)
     where funcErr = throwError $ NotFunction "Unrecognized primitive function args" func
+-}
+
+apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
+apply f args = case f of
+
+    PrimitiveFunc g -> liftThrows (g args)
+
+    Func p v b c    -> 
+        if nParams /= nArgs && v == Nothing
+          then throwError $ NumArgs nParams args
+          else (liftIO $ bindVars c $ zip p args) >>= bindVarArgs v >>= evalBody
+
+      where 
+          getlen r = let l = length r in (l, fromIntegral l) -- save some length calls
+          (lParams, nParams) = getlen p
+          (lArgs,   nArgs)   = getlen args
+          remainingArgs = drop lParams args
+          evalBody env = liftM last $ mapM (eval env) b -- take the current state of the envRef
+          bindVarArgs arg env = case arg of
+              Nothing -> pure env
+              Just name -> liftIO $ bindVars env [(name, List $ remainingArgs)]
+
 
 numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> ThrowsError LispVal
 numericBinOp f = \case
         []   -> throwError $ NumArgs 2 []
         [x]  -> throwError $ NumArgs 2 [x]
         args -> mapM unpackNum args >>= pure . Number. foldl1 f
+
+-- this really doesn't belong in this file
+bindPrimitives :: IO Env
+bindPrimitives = nullEnv >>= (flip bindVars $ fmap (makeFunc IOFunc ioPrimitives) <> fmap makePrimitive primitives)
+    where makePrimitive (v, f) = (v, PrimitiveFunc f)
 
 primitives :: [(String, [LispVal] -> ThrowsError LispVal)] -- refactor this into a case expr?
 primitives = [

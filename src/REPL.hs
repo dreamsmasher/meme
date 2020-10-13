@@ -29,12 +29,13 @@ until_ pred prompt act = do
        else act res >> until_ pred prompt act
 
 startEnv :: String -> IO ()
-startEnv expr = nullEnv >>= flip evalAndPrint expr
+startEnv expr = bindPrimitives >>= flip evalAndPrint expr
 
 runRepl :: IO ()
 runRepl = do
     putStrLn "\n(✿ ╹◡ ╹) Welcome to normie-scheme 0.1.0!"
     putStrLn "Copyright 2020 Norman Liu.\n"
-    nullEnv >>= until_ ("quit" ==) (readPrompt "λ > ") . evalAndPrint
+    bindPrimitives >>= until_ ("quit" ==) (readPrompt "λ > ") . evalAndPrint
     putStrLn "See you later! (✿ - ‿ ◦)\n"
+
 

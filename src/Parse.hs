@@ -33,11 +33,15 @@ backslash = '\\'
 symbols :: Parser Char
 symbols = oneOf "!$%&|-*+=/:<=>?@^_~"
 
-readExpr :: String -> ThrowsError LispVal
-readExpr input = case parse parseExpr "lisp" input of
+readOrThrow :: Parser a -> String -> ThrowsError a
+readOrThrow parser input = case parse parser "lisp" input of
     Left err -> throwError $ Parser err
-    Right val -> return val
+    Right val -> pure val
 
+readExpr :: String -> ThrowsError LispVal
+readExpr = readOrThrow parseExpr
+
+readExprList = readOrThrow (endBy parseExpr spaces)
 -- | our main parsing function
 parseExpr :: Parser LispVal
 parseExpr = 
@@ -51,7 +55,7 @@ parseExpr =
         <|> do char '('
                x <- parseList <|> parseDottedList
                char ')'
-               return x
+               pure x
 
 
 spaces :: Parser ()
@@ -69,7 +73,7 @@ parens = delims ('(', ')')
 brackets = delims ('[', ']')
 
 parseString :: Parser LispVal -- this was beyond annoying
-parseString = try $ stringLiteral lexer >>= return . String
+parseString = try $ stringLiteral lexer >>= pure . String
     where lexer = makeTokenParser haskellDef
     {-
     char '"'
@@ -77,7 +81,7 @@ parseString = try $ stringLiteral lexer >>= return . String
         escaped = do
             char '\\'
             c <- oneOf "\"btrnfv'\\"
-            return $ case c of
+            pure $ case c of
                        'n' -> '\n'
                        'r' -> '\r'
                        't' -> '\t'
@@ -88,18 +92,18 @@ parseString = try $ stringLiteral lexer >>= return . String
                        '"' -> '"'
     x <- many (try escaped <|> anyChar)
     char '"'
-    return (String x)
+    pure (String x)
     -}
 
 parseChar :: Parser LispVal
 parseChar = try $ do  
         string ['#', backslash]
-        -- o <- many anyChar >>= \x -> oneOf (symbols <|> eof) >> return x
+        -- o <- many anyChar >>= \x -> oneOf (symbols <|> eof) >> pure x
         o <- try (string "space") <|> try (string "newline") <|> do
             x <- anyChar
             notFollowedBy alphaNum
-            return [x]
-        return $ Character (case o of
+            pure [x]
+        pure $ Character (case o of
                               "newline" -> '\n'
                               "space" -> ' '
                               _ -> head o)
@@ -109,12 +113,12 @@ parseProc :: Parser LispVal
 parseProc = try $ do
     s <- many letter
     char '?'
-    return $ TypeProc (s ++ "?")
+    pure $ TypeProc (s ++ "?")
     -}
 
 parseBool :: Parser LispVal
 parseBool = try $ char '#' >> oneOf "ft" >>= 
-    \b -> (return . Bool) (case b of
+    \b -> (pure . Bool) (case b of
                             'f' -> False
                             't' -> True)
 
@@ -129,19 +133,19 @@ getNum :: (String -> [(Integer, String)]) -> String -> Integer
 getNum f = fst . head . f
 
 parseHex :: Parser Integer
-parseHex =  string "#x" >> many1 digit >>= \d ->  return (getNum readHex d)
+parseHex =  string "#x" >> many1 digit >>= \d ->  pure (getNum readHex d)
 
 parseOct :: Parser Integer
-parseOct =  string "#o" >> many1 digit >>= \o -> return (getNum readOct o)
+parseOct =  string "#o" >> many1 digit >>= \o -> pure (getNum readOct o)
 
 readBin :: (Num a) => String -> a
 readBin = sum . zipWith (*) (iterate (* 2) 1) . reverse . map (fromIntegral . digitToInt)
 
 parseBin :: Parser Integer
-parseBin =  string "#b" >> many1 digit >>= \b -> return  (readBin b)
+parseBin =  string "#b" >> many1 digit >>= \b -> pure  (readBin b)
 
 parseDec :: Parser Integer
-parseDec =  read <$> choice >>= return 
+parseDec =  read <$> choice >>= pure 
     where choice = try (string "#d" >> many1 digit) <|> many1 digit -- helps avoid clashes with Atoms
 
 parseNumber :: Parser LispVal
@@ -152,14 +156,14 @@ parseNumber = try $ do
             Nothing -> 1
             Just _  -> (-1)
     n <- (try parseDec <|> try parseBin <|> try parseOct <|> try parseHex)
-    return $ Number (sign' * n)
+    pure $ Number (sign' * n)
 
 -- parsePrecision :: Parser NumPrecision --TODO : add support for floats, leaving this for later
 -- parsePrecision = do
 --     p <- optionMaybe (oneOf "eisdfl") 
 --     case p of 
---       Nothing -> return Exact
---       Just n  -> return $ case n of
+--       Nothing -> pure Exact
+--       Just n  -> pure $ case n of
 --                    'e' -> Exact
 --                    'i' -> Inexact
 --                    's' -> Short
@@ -177,12 +181,12 @@ parseDottedList :: Parser LispVal
 parseDottedList = try $  do
     h <- endBy parseExpr spaces
     t <- char '.' >> spaces >> parseExpr
-    return $ DottedList h t
+    pure $ DottedList h t
 
 parseQuoted :: Parser LispVal
 parseQuoted = do
     try $ char '\''
     x <- parseExpr
-    return $ List [Atom "quote", x]
+    pure $ List [Atom "quote", x]
 
 
