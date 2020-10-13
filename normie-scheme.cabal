@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ffba645e1e301865c506ce6fdabc87cc5254a5782e3d157cbe898d287374f212
+-- hash: e5351f9ebbf49c9074cf89ce604194e0b906314c37486e24e1f954f5e24e1421
 
 name:           normie-scheme
 version:        0.1.0.0
@@ -31,7 +31,9 @@ library
       Eval
       Lib
       Parse
+      REPL
       Types
+      Variables
   other-modules:
       Paths_normie_scheme
   hs-source-dirs:
@@ -40,6 +42,7 @@ library
       base >=4.7 && <5
     , mtl
     , parsec
+    , transformers
   default-language: Haskell2010
 
 executable normie-scheme-exe
@@ -54,6 +57,7 @@ executable normie-scheme-exe
     , mtl
     , normie-scheme
     , parsec
+    , transformers
   default-language: Haskell2010
 
 test-suite normie-scheme-test
@@ -69,4 +73,5 @@ test-suite normie-scheme-test
     , mtl
     , normie-scheme
     , parsec
+    , transformers
   default-language: Haskell2010

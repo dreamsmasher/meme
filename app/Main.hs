@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 module Main where
 import System.Environment
 import Control.Monad
@@ -7,16 +8,15 @@ import Parse
 import Eval
 import Errors
 import Types
+import REPL
+import Variables
 
 main :: IO ()
 main = do
-    arg <- head <$> getArgs
+    getArgs >>= \case
+        [] -> runRepl
+        (x:_) -> startEnv x
     -- putStrLn arg
-    parsed <- pure $ show <$> readExpr arg
-    case parsed of 
-      Left err -> print err
-      Right p -> putStrLn p
-    evaled <- pure $ show <$> (readExpr arg >>= eval)
-    (putStrLn . extractValue . trapError) evaled 
+    
 
 
