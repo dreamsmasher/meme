@@ -1,26 +1,38 @@
+{-#LANGUAGE LambdaCase#-}
 module Eval (
     eval, 
-    matchProc,
+    evalExpr,
     apply,
+    symbolToString,
+    stringToSymbol,
+    matchType,
     primitives
 
 ) where
 
 import Text.ParserCombinators.Parsec ()
+import Control.Applicative
 import Parse
+import Debug.Trace
 
 eval :: LispVal -> LispVal
 eval (List [Atom "quote", val]) = val
 eval (List (Atom func : args)) = apply func (fmap eval args)
-eval (List (TypeProc t : args)) = undefined --matchProc t (fmap eval args)
+eval (List (TypeProc t : args)) = apply t (fmap eval args)
 eval val@(String _) = val
 eval val@(Number _) = val
 eval val@(Bool _) = val
 eval val@(Character _) = val
 eval (TypeProc t) = String t
+eval incorrect = throwError $ BadSpecialForm "Unrecognized special form" incorrect
 
+evalExpr :: String -> LispVal
+evalExpr = eval . readExpr
 apply :: String -> [LispVal] -> LispVal
-apply func args = maybe (Bool False) ($ args) $ lookup func primitives
+apply func args = maybe (Bool False) ($ args) $ lookup func primitives 
+
+numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
+numericBinOp f = (Number . foldl1 f . fmap unpackNum)
 
 primitives :: [(String, [LispVal] -> LispVal)]
 primitives = [
@@ -30,60 +42,59 @@ primitives = [
     ("/", numericBinOp div),
     ("mod", numericBinOp mod),
     ("remainder", numericBinOp rem),
-    ("quotient", numericBinOp quot)
+    ("quotient", numericBinOp quot),
+    ("boolean?", booleanUnOp (matchType (Bool True))),
+    ("list?"   , booleanUnOp (matchType (List []) )),
+    ("number?" , booleanUnOp (matchType (Number 0))),
+    ("symbol?" , booleanUnOp (matchSymbol)),
+    ("char?"   , booleanUnOp (matchType (Character 'a'))),
+    ("pair?"   , booleanUnOp (matchAny [List [], DottedList [] (Bool True)]))
  ]
 
-matchProc :: String -> Either (LispVal -> LispVal) (LispVal -> LispVal -> LispVal)-- return Bool
-matchProc s = f 
- where 
-     bt = Bool True
-     bf = Bool False
-     f = case s of
-        "boolean" -> Left $ \x -> case x of 
-                            (Bool b) -> x
-                            _        -> bf 
-        "list"    -> Left $ \l -> case l of
-                            (List l) -> bt
-                            _        -> bf
-        "pair"    -> Left $ \p -> case p of
-                            (List _) -> bt
-                            (DottedList _ _) -> bt
-                            _ -> bf
-        "symbol"  -> Left $ \s -> case s of
-                            List [Atom "quote", List []] -> bf
-                            Bool _ -> s
-                            String _ -> bf
-                            _ -> bt
-        "char"    -> Left $  \c -> case c of
-                            Char _ -> bt
-                            _      -> bf
-                            
-        "eqv"     -> Right g
-        -- TODO: figure out a better way to do this...
-          
-deconstruct :: LispVal -> a        
-deconstruct lv = case lv of
-    Bool b -> b
-    Atom a -> a
-    Number n -> n
-    Char c -> c
-    TypeProc t -> t
-    String s -> s
-    List l -> l
+booleanUnOp :: (LispVal -> LispVal) -> [LispVal] -> LispVal
+booleanUnOp f [l@(List _)] = f l
+booleanUnOp f [n@(Number _)] = f n
+booleanUnOp f [a@(Atom _)] = f a
+booleanUnOp f [d@(DottedList _ _)] = f d
+booleanUnOp f [c@(Character _)] = f c
+booleanUnOp _ v = error $ "Incorrect argument count in call " ++ show v
 
-numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> LispVal
-numericBinOp f = (Number . foldl1 f . fmap unpackNum)
+matchSymbol :: LispVal -> LispVal
+matchSymbol (Atom _) = Bool True
+matchSymbol (List [Atom _]) = Bool True
+matchSymbol x = trace (show x) $ Bool False
+         
+matchAny :: [LispVal] -> LispVal -> LispVal
+matchAny fs = Bool . any (\(Bool b) -> b) . liftA2 matchType fs . pure
+-- partially apply matchType to all valid types within fs
+
+matchType :: LispVal -> LispVal -> LispVal
+matchType a = Bool . matchType' a
+    where 
+        matchType' (Atom _) (Atom _) = True 
+        matchType' (String _) (String _) = True
+        matchType' (Number _) (Number _) = True
+        matchType' (List _) (List _) = True
+        matchType' (Character _) (Character _) = True
+        matchType' (DottedList _ _) (DottedList _ _) = True
+        matchType' _ _ = False
+
 
 unpackNum :: LispVal -> Integer
 unpackNum lv = case lv of
     Number n -> n
-    String s -> let p = reads s :: [(Integer, String)]
-                 in case p of
-                    [] -> 0
-                    ((n, _) : _) -> n
-    List [n] -> unpackNum n
     _        -> 0
 
+         -- atom    -> atom    -> bool
+eqSymbol :: LispVal -> LispVal -> LispVal
+eqSymbol (Atom a) (Atom b) = Bool (a == b)
+
+symbolToString :: LispVal -> LispVal
+symbolToString (Atom s) = String s
+symbolToString (List [Atom "quote", x]) = symbolToString x
+
+stringToSymbol :: LispVal -> LispVal
+stringToSymbol (String s) = Atom s
 
 
 

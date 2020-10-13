@@ -2,6 +2,7 @@
 module Parse (
     LispVal (..),
     parseExpr,
+    unwordsList,
     readExpr,
     showTrace,
     parseTest,
@@ -21,6 +22,8 @@ import Debug.Trace
 import Text.Parsec.Token 
 import Text.Parsec.Language(haskellDef)
 
+import Errors
+
 data LispVal = Atom String
              | List [LispVal]
              | DottedList [LispVal] LispVal
@@ -37,7 +40,7 @@ instance Show LispVal where
     show (Number n) = show n
     show (String c) = "\"" ++ c ++ "\""
     show (Character c) = [c]
-    show (TypeProc t) = t ++ "?"
+    show (TypeProc t) = t
     show (Bool b) = if b then "#t" else "#f"
 
 data NumPrecision = Exact | Inexact | Short | Single | Double | Long deriving (Eq, Ord, Enum, Show)
@@ -51,11 +54,10 @@ backslash = '\\'
 symbols :: Parser Char
 symbols = oneOf "!$%&|-*+=/:<=>?@^_~\""
 
-readExpr :: String -> LispVal
+readExpr :: String -> ThrowsError LispVal
 readExpr input = case parse parseExpr "lisp" input of
-    Left err -> String $ "No match: " <> show err
-    --Right val -> "Found value: " <> show val
-    Right val -> val
+    Left err -> throwError $ Parser err
+    Right val -> return val
 
 -- | our main parsing function
 parseExpr :: Parser LispVal
@@ -106,7 +108,7 @@ parseProc :: Parser LispVal
 parseProc = try $ do
     s <- many letter
     char '?'
-    return $ TypeProc s
+    return $ TypeProc (s ++ "?")
 
 parseBool :: Parser LispVal
 parseBool = try $ char '#' >> oneOf "ft" >>= 
