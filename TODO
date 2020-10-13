@@ -1,0 +1,5 @@
+TODO:
+
+fix string operations
+refactor builtin expressions into their own constructor
+change pattern matches to use Data.Data generics

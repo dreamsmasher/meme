@@ -7,9 +7,7 @@ import Control.Monad.Except
 
 import Parse
 import Eval
-import Errors
-import Types
-import Variables
+import Environment
 
 flushStr :: String -> IO ()
 flushStr s = putStr s >> hFlush stdout

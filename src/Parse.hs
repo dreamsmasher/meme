@@ -24,8 +24,7 @@ import Debug.Trace
 import Text.Parsec.Token 
 import Text.Parsec.Language(haskellDef)
 
-import Errors 
-import Types
+import Environment
 
 
 backslash :: Char

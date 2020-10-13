@@ -28,6 +28,9 @@ dependencies:
 library:
   source-dirs: src
 
+default-extensions:
+    - LambdaCase
+
 executables:
   normie-scheme-exe:
     main:                Main.hs
@@ -39,7 +42,7 @@ executables:
     - -O2
     dependencies:
     - normie-scheme
-
+  
 tests:
   normie-scheme-test:
     main:                Spec.hs

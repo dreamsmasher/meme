@@ -6,10 +6,8 @@ import Control.Monad.Except
 
 import Parse
 import Eval
-import Errors
-import Types
 import REPL
-import Variables
+import Environment
 
 main :: IO ()
 main = do

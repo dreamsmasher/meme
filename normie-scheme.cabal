@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e5351f9ebbf49c9074cf89ce604194e0b906314c37486e24e1f954f5e24e1421
+-- hash: 38fb7c198a5d4f76ca4dcbb061854d19a48a5940b5ff520c380f9d3371e4b387
 
 name:           normie-scheme
 version:        0.1.0.0
@@ -27,17 +27,16 @@ source-repository head
 
 library
   exposed-modules:
-      Errors
+      Environment
       Eval
       Lib
       Parse
       REPL
-      Types
-      Variables
   other-modules:
       Paths_normie_scheme
   hs-source-dirs:
       src
+  default-extensions: LambdaCase
   build-depends:
       base >=4.7 && <5
     , mtl
@@ -51,6 +50,7 @@ executable normie-scheme-exe
       Paths_normie_scheme
   hs-source-dirs:
       app
+  default-extensions: LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
@@ -67,6 +67,7 @@ test-suite normie-scheme-test
       Paths_normie_scheme
   hs-source-dirs:
       test
+  default-extensions: LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

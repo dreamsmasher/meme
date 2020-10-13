@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, ExistentialQuantification #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Eval (
     eval, 
@@ -14,9 +14,7 @@ module Eval (
 import Text.ParserCombinators.Parsec ()
 import Control.Applicative
 import Parse
-import Types
-import Errors
-import Variables
+import Environment
 import Control.Monad.Except
 import Debug.Trace
 
@@ -26,6 +24,8 @@ eval env = \case
     val@(String _) -> pure val
     val@(Number _) -> pure val
     val@(Atom a)   -> getVar env a
+    val@(Bool _) -> pure val
+    val@(Character _) -> pure val
     (List [Atom "quote", val]) -> pure val
     (List [Atom "if", p, t, e]) -> do
                     eval env p >>= \case
@@ -40,8 +40,6 @@ eval env = \case
     (List [Atom "define", Atom var, form]) -> eval env form >>= defineVar env var
     (List (Atom func : args)) -> mapM (eval env) args >>= liftThrows . apply func
     -- (List (TypeProc t : args)) -> mapM eval args >>= apply t
-    val@(Bool _) -> pure val
-    val@(Character _) -> pure val
     incorrect -> throwError $ BadSpecialForm "Unrecognized special form" incorrect
 
 evalExpr :: Env -> String -> IOThrowsError LispVal
@@ -211,6 +209,8 @@ unpackEquals lv lz (Unpack r) = do
         pure $ ulv == ulz
     `catchError` (const $ pure False)
 
+
+    {-
 eqv :: [LispVal] -> ThrowsError LispVal
 eqv =  -- this is ugly
     let eqv' (Bool a) (Bool b)     = a == b
@@ -229,6 +229,11 @@ eqv =  -- this is ugly
      in \case
             [x, y] -> (pure . Bool) $ eqv' x y
             xyz    -> throwError $ NumArgs 2 xyz
+            -}
+eqv :: [LispVal] -> ThrowsError LispVal
+eqv = \case
+    [x, y] -> pure . Bool $ x == y
+    notBinList -> throwError $ NumArgs 2 notBinList
 
 equal :: [LispVal] -> ThrowsError LispVal
 equal = \case
