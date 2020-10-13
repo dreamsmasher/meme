@@ -14,11 +14,11 @@ data LispVal = Atom String
              | Bool Bool deriving (Eq)
 
 instance Show LispVal where
-    show (Atom s) = "Atom " <> s
-    show (List lst) = "(" ++ unwordsList lst ++ ")"
-    show (DottedList h t) = "(" ++ unwordsList h ++ "." ++ show t ++ ")"
+    show (Atom s) = s
+    show (List lst) = "(" <> unwordsList lst <> ")"
+    show (DottedList h t) = "(" <> unwordsList h <> "." <> show t <> ")"
     show (Number n) = show n
-    show (String c) = "string \"" ++ c ++ "\""
+    show (String c) = "\"" <> c <> "\""
     show (Character c) = [c]
     show (TypeProc t) = t
     show (Bool b) = if b then "#t" else "#f"

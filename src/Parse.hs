@@ -10,7 +10,8 @@ module Parse (
     parseAtom,
     parserTrace,
     parserTraced,
-    parseString
+    parseString,
+    parseList
 ) where
 
 import Text.ParserCombinators.Parsec hiding (spaces)
@@ -43,19 +44,19 @@ parseExpr :: Parser LispVal
 parseExpr = 
         -- <|> parseProc
         parseNumber 
-        <|> parseAtom 
         <|> parseString 
+        <|> parseAtom 
         <|> parseBool 
         <|> parseChar 
         <|> parseQuoted 
         <|> do char '('
-               x <- try parseList <|> parseDottedList
+               x <- parseList <|> parseDottedList
                char ')'
                return x
 
 
 spaces :: Parser ()
-spaces = skipMany1 space
+spaces = skipMany space
 
 showTrace :: (Show a) => a -> a -- remove later
 showTrace x = trace (show x) x
@@ -73,8 +74,8 @@ parseString = try $ stringLiteral lexer >>= return . String
     where lexer = makeTokenParser haskellDef
 
 parseChar :: Parser LispVal
-parseChar = do  
-        try $ string ['#', backslash]
+parseChar = try $ do  
+        string ['#', backslash]
         -- o <- many anyChar >>= \x -> oneOf (symbols <|> eof) >> return x
         o <- try (string "space") <|> try (string "newline") <|> do
             x <- anyChar
@@ -150,10 +151,10 @@ sepNumOrAtom :: Parser LispVal
 sepNumOrAtom = undefined
 
 parseList :: Parser LispVal
-parseList = liftM List $ sepBy parseExpr spaces
+parseList = try $ liftM List $ sepBy parseExpr spaces
 
 parseDottedList :: Parser LispVal
-parseDottedList = do
+parseDottedList = try $  do
     h <- endBy parseExpr spaces
     t <- char '.' >> spaces >> parseExpr
     return $ DottedList h t
