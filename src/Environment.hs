@@ -53,6 +53,7 @@ data LispVal = Atom String
              | IOFunc ([LispVal] -> IOThrowsError LispVal)
              | Port Handle
 
+
 instance Eq LispVal where
     Atom a == Atom b = a == b
     DottedList a x == DottedList b y = a == b && x == y
@@ -171,17 +172,4 @@ bindVars :: Env -> [(String, LispVal)] -> IO Env
 bindVars  envRef bindings = readIORef envRef >>= extendEnv bindings >>= newIORef
     where extendEnv bindings env = liftM (++ env) (mapM addBind bindings)
           addBind (var, val) = newIORef val >>= \ref -> pure (var, ref)
-
-ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
-ioPrimitives = [
-            ("apply", applyProc),
-            ("open-input-file", makePort ReadMode),
-            ("open-output-file", makePort WriteMode),
-            ("close-input-port", closePort)
-            ("close-output-port", closePort)
-            ("read", readProc),
-            ("write", writeProc),
-            ("read-contents", readContents),
-            ("read-all", readAll)
-               ]
 

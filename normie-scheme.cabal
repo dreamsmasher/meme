@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 38fb7c198a5d4f76ca4dcbb061854d19a48a5940b5ff520c380f9d3371e4b387
+-- hash: 3101c3d36efa4bea88731e468df2d7f743f11b51458291c7816b0d9d2a0a28e5
 
 name:           normie-scheme
 version:        0.1.0.0
@@ -29,6 +29,8 @@ library
   exposed-modules:
       Environment
       Eval
+      IOFunctions
+      IOPrims
       Lib
       Parse
       REPL

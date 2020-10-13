@@ -4,6 +4,7 @@ module Parse (
     parseExpr,
     unwordsList,
     readExpr,
+    readExprList,
     showTrace,
     parseTest,
     parseNumber,
@@ -41,7 +42,9 @@ readOrThrow parser input = case parse parser "lisp" input of
 readExpr :: String -> ThrowsError LispVal
 readExpr = readOrThrow parseExpr
 
+readExprList :: String -> ThrowsError [LispVal]
 readExprList = readOrThrow (endBy parseExpr spaces)
+
 -- | our main parsing function
 parseExpr :: Parser LispVal
 parseExpr = 

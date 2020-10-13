@@ -8,17 +8,18 @@ module Eval (
     stringToSymbol,
     matchType,
     primitives,
-    bindPrimitives,
+    makeFunc
 
 ) where
 
 import Text.ParserCombinators.Parsec ()
 import Control.Applicative
-import Parse
-import Environment
 import Control.Monad.Except
 import Debug.Trace
 
+import Parse
+import IOPrims
+import Environment
 -- wrap Env within a reader monad? 
 eval :: Env -> LispVal -> IOThrowsError LispVal
 eval env = \case
@@ -62,6 +63,7 @@ eval env = \case
 evalExpr :: Env -> String -> IOThrowsError LispVal
 evalExpr env = eval env . extractValue . readExpr
 
+
 makeFunc :: Maybe String -> Env -> [LispVal] -> [LispVal] -> IOThrowsError LispVal
 makeFunc v e p b = pure $ Func (fmap show p) v b e
 
@@ -103,11 +105,6 @@ numericBinOp f = \case
         [x]  -> throwError $ NumArgs 2 [x]
         args -> mapM unpackNum args >>= pure . Number. foldl1 f
 
--- this really doesn't belong in this file
-bindPrimitives :: IO Env
-bindPrimitives = nullEnv >>= (flip bindVars $ fmap (makeFunc IOFunc ioPrimitives) <> fmap makePrimitive primitives)
-    where makePrimitive (v, f) = (v, PrimitiveFunc f)
-
 primitives :: [(String, [LispVal] -> ThrowsError LispVal)] -- refactor this into a case expr?
 primitives = [
     ("+", numericBinOp (+)),
@@ -144,6 +141,32 @@ primitives = [
     ("char?"   ,  booleanUnOp (matchType (Character 'a'))),
     ("pair?"   ,  booleanUnOp (matchAny [List [], DottedList [] (Bool True)]))
     ]
+
+ioPrimitives :: [(String, [LispVal] -> IOThrowsError LispVal)]
+ioPrimitives = [
+            ("apply", applyProc),
+            ("open-input-file", makePort ReadMode),
+            ("open-output-file", makePort WriteMode),
+            ("close-input-port", closePort),
+            ("close-output-port", closePort),
+            ("read", readProc),
+            ("write", writeProc),
+            ("read-contents", readContents),
+            ("read-all", readAll)
+               ]
+
+bindPrimitives :: IO Env
+bindPrimitives = nullEnv >>= (flip bindVars $ 
+    (fmap (makePrim IOFunc) ioPrimitives) <> (fmap (makePrim PrimitiveFunc) primitives))
+      where makePrim c (v, f) = (v, c f)
+
+
+
+applyProc :: [LispVal] -> IOThrowsError LispVal -- deconstructs argument lists
+applyProc = \case
+    [f, List args] -> apply f args
+    (f : args)     -> apply f args
+
 
 booleanUnOp :: (LispVal -> LispVal) -> [LispVal] -> ThrowsError LispVal
 booleanUnOp f = \case
@@ -380,3 +403,4 @@ strRef  = \case
 -- strSet :: [LispVal] -> IOThrowsError LispVal
 -- strSet = \case
     -- [String s, Character c] -> 
+    --
