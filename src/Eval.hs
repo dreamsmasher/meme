@@ -1,4 +1,5 @@
-{-#LANGUAGE LambdaCase#-}
+{-# LANGUAGE LambdaCase, ExistentialQuantification #-}
+
 module Eval (
     eval, 
     evalExpr,
@@ -21,6 +22,11 @@ import Debug.Trace
 eval :: LispVal -> ThrowsError LispVal
 eval = \case
     (List [Atom "quote", val]) -> return val
+    (List [Atom "if", p, t, e]) -> do
+                    eval p >>= \case
+                        Bool False -> eval e    
+                        Bool True  -> eval t
+                        notBool    -> throwError $ TypeMismatch "bool" notBool
     (List (Atom func : args)) -> mapM eval args >>= apply func
     -- (List (TypeProc t : args)) -> mapM eval args >>= apply t
     val@(String _) -> return val
@@ -43,7 +49,7 @@ numericBinOp f = \case
         [x]  -> throwError $ NumArgs 2 [x]
         args -> mapM unpackNum args >>= return . Number. foldl1 f
 
-primitives :: [(String, [LispVal] -> ThrowsError LispVal)]
+primitives :: [(String, [LispVal] -> ThrowsError LispVal)] -- refactor this into a case expr?
 primitives = [
     ("+", numericBinOp (+)),
     ("-", numericBinOp (-)),
@@ -60,6 +66,12 @@ primitives = [
     (">=", numBoolBinOp (>=)),
     ("&&", boolBoolBinOp (&&)),
     ("||", boolBoolBinOp (||)),
+    ("cons", cons),
+    ("car", car),
+    ("cdr", cdr),
+    ("eqv?", eqv),
+    ("eq?", eqv),
+    ("equal?", equal),
     ("string=?", strBoolBinOp (==)),
     ("string<?", strBoolBinOp (<)),
     ("string>?", strBoolBinOp (>)),
@@ -125,7 +137,24 @@ matchType a = Bool . matchType' a
         matchType' (DottedList _ _) (DottedList _ _) = True
         matchType' _ _ = False
 
-
+eqv :: [LispVal] -> ThrowsError LispVal
+eqv =  -- this is ugly
+    let eqv' (Bool a) (Bool b) = a == b
+        eqv' (Number a) (Number b) = a == b
+        eqv' (String a) (String b) = a == b
+        eqv' (Atom a) (Atom b) = a == b
+        eqv' (DottedList a a') (DottedList b b') = a == b && a' == b'
+        eqv' (List a) (List b) = eqv'' a b
+            where eqv''  [] []     = True
+                  eqv'' [] (y:ys) = False
+                  eqv''  (x:xs) [] = False
+                  eqv'' (x:xs) (y:ys) = case eqv [x, y] of
+                                          Left err -> False
+                                          Right (Bool b) -> b && eqv' (List xs) (List ys)
+        eqv' _ _ = False
+     in \case
+            [x, y] -> (return . Bool) $ eqv' x y
+            xyz    -> throwError $ NumArgs 2 xyz
 unpackNum :: LispVal -> ThrowsError Integer
 unpackNum = \case
     Number n -> return n
@@ -162,3 +191,39 @@ stringToSymbol (String s) = Atom s
 
 
 
+car :: [LispVal] -> ThrowsError LispVal
+car = \case
+    [List (x:xs)] -> return x
+    [DottedList (x:xs) _] -> return x
+    [ridiculous] -> throwError $ TypeMismatch "pair" ridiculous
+    ridiculousList -> throwError $ NumArgs 1 ridiculousList
+
+cdr :: [LispVal] -> ThrowsError LispVal
+cdr = \case
+    [List (_:xs)] -> return $ List xs
+    [DottedList [] z] -> return z
+    [DottedList (x:xs) z] -> return $ DottedList xs z
+    [invalid] -> throwError $ TypeMismatch "pair" invalid
+    invalidList -> throwError $ NumArgs 1 invalidList
+
+cons :: [LispVal] -> ThrowsError LispVal
+cons = \case
+    [x, List xs] -> return $ List (x:xs)
+    [x, DottedList xs l] -> return $ DottedList (x:xs) l
+    [x, y] -> return $ DottedList [x] y
+    consequences -> throwError $ NumArgs 2 consequences
+
+unpackEquals :: LispVal -> LispVal -> Unpack -> ThrowsError Bool
+unpackEquals lv lz (Unpack r) = do
+        ulv <- r lv
+        ulz <- r lz
+        return $ ulv == ulz
+    `catchError` (const $ return False)
+
+equal :: [LispVal] -> ThrowsError LispVal
+equal = \case
+    [x, y] -> do
+        primEq <- liftM or $ mapM (unpackEquals x y) [Unpack unpackBool, Unpack unpackNum, Unpack unpackStr] -- need to wrap these in Unpack
+        eqvEq  <- eqv [x, y]
+        return . Bool $ (primEq || (\(Bool b) -> b) eqvEq)
+    z      -> throwError $ NumArgs 2 z

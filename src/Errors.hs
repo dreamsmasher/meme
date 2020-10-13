@@ -1,6 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE RankNTypes #-}
 module Errors (
     LispError (..),
+    Unpack (..),
     ThrowsError,
     extractValue, 
     trapError
@@ -29,6 +32,11 @@ instance Show LispError where
         (Parser parseErr) -> "Parse error at " <> show parseErr
 
 type ThrowsError = Either LispError
+
+--newtype Unpack = Unpack {
+                --runPack :: forall a. (Eq a) => (LispVal -> ThrowsError a)
+                 --} -- hahahaha
+data Unpack = forall a. Eq a => Unpack (LispVal -> ThrowsError a)
 
 trapError :: (MonadError a m, Show a) => m String -> m String
 trapError action = catchError action (return . show)

@@ -10,7 +10,7 @@ data LispVal = Atom String
              | Number Integer
              | String String
              | Character Char 
-             | TypeProc String 
+             -- | TypeProc String 
              | Bool Bool deriving (Eq)
 
 instance Show LispVal where
@@ -20,7 +20,7 @@ instance Show LispVal where
     show (Number n) = show n
     show (String c) = "\"" <> c <> "\""
     show (Character c) = [c]
-    show (TypeProc t) = t
+    -- show (TypeProc t) = t
     show (Bool b) = if b then "#t" else "#f"
 
 data NumPrecision = Exact
@@ -29,6 +29,7 @@ data NumPrecision = Exact
                   | Single 
                   | Double 
                   | Long deriving (Eq, Ord, Enum, Show)
+
 
 unwordsList :: [LispVal] -> String
 unwordsList = unwords . map show

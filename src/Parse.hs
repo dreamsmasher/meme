@@ -72,6 +72,25 @@ brackets = delims ('[', ']')
 parseString :: Parser LispVal -- this was beyond annoying
 parseString = try $ stringLiteral lexer >>= return . String
     where lexer = makeTokenParser haskellDef
+    {-
+    char '"'
+    let escaped :: Parser Char
+        escaped = do
+            char '\\'
+            c <- oneOf "\"btrnfv'\\"
+            return $ case c of
+                       'n' -> '\n'
+                       'r' -> '\r'
+                       't' -> '\t'
+                       'f' -> '\f'
+                       'v' -> '\v'
+                       '\\'-> '\\'
+                       'b' -> '\b'
+                       '"' -> '"'
+    x <- many (try escaped <|> anyChar)
+    char '"'
+    return (String x)
+    -}
 
 parseChar :: Parser LispVal
 parseChar = try $ do  
@@ -86,11 +105,13 @@ parseChar = try $ do
                               "space" -> ' '
                               _ -> head o)
 
+    {- redundant
 parseProc :: Parser LispVal
 parseProc = try $ do
     s <- many letter
     char '?'
     return $ TypeProc (s ++ "?")
+    -}
 
 parseBool :: Parser LispVal
 parseBool = try $ char '#' >> oneOf "ft" >>= 
