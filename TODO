@@ -1,6 +1,7 @@
 TODO:
 
 fix string operations
+add macros
 change pattern matches to use Data.Data generics
 fix dot expressions
 add support for floating points and other primitives
