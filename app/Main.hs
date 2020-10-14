@@ -13,8 +13,10 @@ main :: IO ()
 main = do
     getArgs >>= \case
         [] -> runRepl
-        (x:_) -> startEnv x
-    -- putStrLn arg
+        ("-i" : args) -> do
+            env <- startEnv args
+            runRepl
+        args -> startEnv args
     
 
 

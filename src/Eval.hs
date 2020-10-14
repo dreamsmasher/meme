@@ -8,6 +8,7 @@ module Eval (
     stringToSymbol,
     matchType,
     primitives,
+    bindPrimitives,
     makeFunc
 
 ) where
@@ -16,11 +17,14 @@ import Text.ParserCombinators.Parsec ()
 import Control.Applicative
 import Control.Monad.Except
 import Debug.Trace
+import GHC.IO hiding (liftIO)
+import System.IO
 
 import Parse
-import IOPrims
+import IOFunctions
 import Environment
--- wrap Env within a reader monad? 
+
+-- wrap this within a ST?
 eval :: Env -> LispVal -> IOThrowsError LispVal
 eval env = \case
     val@(String _) -> pure val
@@ -34,25 +38,30 @@ eval env = \case
                         Bool False -> eval env e    
                         Bool True  -> eval env t
                         notBool    -> throwError $ TypeMismatch "bool" notBool
+
     (List (Atom "cond": args)) -> cond env args
     (List (Atom "case" : pred : args)) -> eval env pred >>= \p -> evalCase env p args
     (List (Atom "and": args)) -> evalAnd env args
     (List (Atom "or": args)) -> evalOr env args
     (List [Atom "set!", Atom var, form]) -> eval env form >>= setVar env var
-    (List [Atom "define", Atom var, form]) -> eval env form >>= defineVar env var
+    (List [Atom "define", Atom var, form]) -> eval env form >>= (defineVar env var)
+
     (List (Atom "define" : List (Atom var : params) : body)) ->
-        makeNormalFunc env params body >>= defineVar env var
+        makeNormalFunc env params body >>= \lv -> defineVar env var lv
         -- e.g. (define (succ n) (+ 1 n))
+        
     (List (Atom "define" : DottedList (Atom var : params) varArgs : body)) ->
-        makeVarArgs varArgs env params body >>= defineVar env var
-    (List (Atom "lambda" : List params : body)) ->
+        makeVarArgs varArgs env params body >>= \vf -> defineVar env var vf
+    (List (Atom "lambda" : List params : body)) ->  
         makeNormalFunc env params body
         -- e.g. ((lambda n) (+ n 1) 3) -> 4
+        
     (List (Atom "lambda" : DottedList params varArgs : body)) ->
         makeVarArgs varArgs env params body
     (List (Atom "lambda" : varArgs@(Atom _) : body)) ->
         makeVarArgs varArgs env [] body
-
+    (List [Atom "load", String filename]) ->
+        load filename >>= liftM last . mapM (eval env)
     (List (func : args)) -> do
         f <- eval env func
         argVals <- mapM (eval env) args
@@ -80,14 +89,12 @@ apply func args = maybe funcErr ($ args ) (lookup func primitives)
 
 apply :: LispVal -> [LispVal] -> IOThrowsError LispVal
 apply f args = case f of
-
     PrimitiveFunc g -> liftThrows (g args)
 
-    Func p v b c    -> 
+    Func p v b c    ->  
         if nParams /= nArgs && v == Nothing
           then throwError $ NumArgs nParams args
           else (liftIO $ bindVars c $ zip p args) >>= bindVarArgs v >>= evalBody
-
       where 
           getlen r = let l = length r in (l, fromIntegral l) -- save some length calls
           (lParams, nParams) = getlen p
@@ -97,6 +104,8 @@ apply f args = case f of
           bindVarArgs arg env = case arg of
               Nothing -> pure env
               Just name -> liftIO $ bindVars env [(name, List $ remainingArgs)]
+    IOFunc g -> g args
+    _ -> throwError $ TypeMismatch "func" f
 
 
 numericBinOp :: (Integer -> Integer -> Integer) -> [LispVal] -> ThrowsError LispVal
@@ -127,6 +136,7 @@ primitives = [
     ("cdr",  cdr),
     ("eqv?",  eqv),
     ("eq?",  eqv),
+    -- ("list", toList),
     ("equal?",  equal),
     ("string=?",  strBoolBinOp (==)),
     ("string<?",  strBoolBinOp (<)),
@@ -157,9 +167,8 @@ ioPrimitives = [
 
 bindPrimitives :: IO Env
 bindPrimitives = nullEnv >>= (flip bindVars $ 
-    (fmap (makePrim IOFunc) ioPrimitives) <> (fmap (makePrim PrimitiveFunc) primitives))
+    (fmap (makePrim IOFunc) ioPrimitives) <> (fmap (makePrim PrimitiveFunc) primitives)) 
       where makePrim c (v, f) = (v, c f)
-
 
 
 applyProc :: [LispVal] -> IOThrowsError LispVal -- deconstructs argument lists
@@ -373,6 +382,9 @@ anyEq p (List (l:ls)) = eqv [p, l] >>= \case
     Bool True -> pure $ Bool True
     _         -> anyEq p (List ls)
 
+
+toList :: [LispVal] -> ThrowsError LispVal
+toList xs = pure (List xs)
 
 -- TODO: make this work again
 makeString :: Env -> [LispVal] -> IOThrowsError LispVal

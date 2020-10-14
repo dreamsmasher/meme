@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3101c3d36efa4bea88731e468df2d7f743f11b51458291c7816b0d9d2a0a28e5
+-- hash: 9e9f2512134eed02d325c58cccb3e022ae5d2bdfdeac9700321fe6ee69b5a4d0
 
 name:           normie-scheme
 version:        0.1.0.0
@@ -30,8 +30,6 @@ library
       Environment
       Eval
       IOFunctions
-      IOPrims
-      Lib
       Parse
       REPL
   other-modules:
@@ -41,6 +39,7 @@ library
   default-extensions: LambdaCase
   build-depends:
       base >=4.7 && <5
+    , haskeline
     , mtl
     , parsec
     , transformers
@@ -56,6 +55,7 @@ executable normie-scheme-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
+    , haskeline
     , mtl
     , normie-scheme
     , parsec
@@ -73,6 +73,7 @@ test-suite normie-scheme-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , haskeline
     , mtl
     , normie-scheme
     , parsec

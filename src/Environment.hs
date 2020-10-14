@@ -102,11 +102,11 @@ data LispError = NumArgs Integer [LispVal]
 
 instance Show LispError where
     show = \case 
-        (UnboundVar msg var) -> "UnboundVar" <> msg <> ": " <> var
-        (BadSpecialForm msg frm) -> "BadSpecialForm " <> msg <> ": " <> show frm
-        (NotFunction msg func) -> "NotFunction" <> msg <> ": " <> func
+        (UnboundVar msg var) -> "UnboundVar:" <> msg <> ": " <> var
+        (BadSpecialForm msg frm) -> "BadSpecialForm: " <> msg <> ": " <> show frm
+        (NotFunction msg func) -> "NotFunction: " <> msg <> ": " <> func
         (NumArgs exp fnd) -> "NumArgs: expected " <> show exp <> " args; found values " <> unwordsList fnd
-        (TypeMismatch exp fnd) -> "TypeMismatch: Invalid type: expected " <> exp <> ", found " <> show fnd
+        (TypeMismatch exp fnd) -> "TypeMismatch: expected " <> exp <> ", found " <> show fnd
         (Parser parseErr) -> "Parse error at " <> show parseErr
 
 type ThrowsError = Either LispError
