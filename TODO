@@ -1,5 +1,8 @@
 TODO:
 
 fix string operations
-refactor builtin expressions into their own constructor
 change pattern matches to use Data.Data generics
+fix dot expressions
+add support for floating points and other primitives
+migrate from IORef to STRef
+add color to terminal?
