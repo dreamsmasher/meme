@@ -1,9 +1,8 @@
-name:                normie-scheme
+name:                meme
 version:             0.1.0.0
-github:              "dreamsmasher/normie-scheme"
+github:              "dreamsmasher/meme"
 license:             BSD3
 author:              "Norman Liu"
-# maintainer:          "example@example.com"
 copyright:           "2020 Norman Liu"
 
 extra-source-files:
@@ -11,20 +10,20 @@ extra-source-files:
 - ChangeLog.md
 
 # Metadata used when publishing your package
-# synopsis:            scheme for normies
+# synopsis:            meme: a monadic scheme implementation
 # category:            Languages
 
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/dreamsmasher/normie-scheme#readme>
+description:         Please see the README on GitHub at <https://github.com/dreamsmasher/meme#readme>
 
 dependencies:
 - base >= 4.7 && < 5
-- parsec
-- mtl
-- transformers
-- haskeline
+- parsec >= 3.1.12 && < 3.1.18
+- mtl >=2.2.1 && < 2.2.3
+- transformers > 0.5.6 && < 0.5.7
+- haskeline >= 0.7.5 && < 0.8.1
 
 library:
   source-dirs: src
@@ -33,7 +32,7 @@ default-extensions:
     - LambdaCase
 
 executables:
-  normie-scheme-exe:
+  meme-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -42,10 +41,10 @@ executables:
     - -with-rtsopts=-N
     - -O2
     dependencies:
-    - normie-scheme
+    - meme
   
 tests:
-  normie-scheme-test:
+  meme-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -53,4 +52,4 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - normie-scheme
+    - meme

@@ -4,13 +4,13 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 9e9f2512134eed02d325c58cccb3e022ae5d2bdfdeac9700321fe6ee69b5a4d0
+-- hash: 7cdc3ff10398622e488e1d4e2ceadf8a0c9931d703751a42c79d5d62b0e16e2c
 
-name:           normie-scheme
+name:           meme
 version:        0.1.0.0
-description:    Please see the README on GitHub at <https://github.com/dreamsmasher/normie-scheme#readme>
-homepage:       https://github.com/dreamsmasher/normie-scheme#readme
-bug-reports:    https://github.com/dreamsmasher/normie-scheme/issues
+description:    Please see the README on GitHub at <https://github.com/dreamsmasher/meme#readme>
+homepage:       https://github.com/dreamsmasher/meme#readme
+bug-reports:    https://github.com/dreamsmasher/meme/issues
 author:         Norman Liu
 maintainer:     Norman Liu
 copyright:      2020 Norman Liu
@@ -23,7 +23,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/dreamsmasher/normie-scheme
+  location: https://github.com/dreamsmasher/meme
 
 library
   exposed-modules:
@@ -33,49 +33,49 @@ library
       Parse
       REPL
   other-modules:
-      Paths_normie_scheme
+      Paths_meme
   hs-source-dirs:
       src
   default-extensions: LambdaCase
   build-depends:
       base >=4.7 && <5
-    , haskeline
-    , mtl
-    , parsec
-    , transformers
+    , haskeline >=0.7.5 && <0.8.1
+    , mtl >=2.2.1 && <2.2.3
+    , parsec >=3.1.12 && <3.1.18
+    , transformers >0.5.6 && <0.5.7
   default-language: Haskell2010
 
-executable normie-scheme-exe
+executable meme-exe
   main-is: Main.hs
   other-modules:
-      Paths_normie_scheme
+      Paths_meme
   hs-source-dirs:
       app
   default-extensions: LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -O2
   build-depends:
       base >=4.7 && <5
-    , haskeline
-    , mtl
-    , normie-scheme
-    , parsec
-    , transformers
+    , haskeline >=0.7.5 && <0.8.1
+    , meme
+    , mtl >=2.2.1 && <2.2.3
+    , parsec >=3.1.12 && <3.1.18
+    , transformers >0.5.6 && <0.5.7
   default-language: Haskell2010
 
-test-suite normie-scheme-test
+test-suite meme-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_normie_scheme
+      Paths_meme
   hs-source-dirs:
       test
   default-extensions: LambdaCase
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
-    , haskeline
-    , mtl
-    , normie-scheme
-    , parsec
-    , transformers
+    , haskeline >=0.7.5 && <0.8.1
+    , meme
+    , mtl >=2.2.1 && <2.2.3
+    , parsec >=3.1.12 && <3.1.18
+    , transformers >0.5.6 && <0.5.7
   default-language: Haskell2010

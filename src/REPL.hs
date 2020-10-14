@@ -55,8 +55,9 @@ loop env = handle (\Interrupt -> outputStr "" >> loop env) $ do
 
 runRepl :: IO ()
 runRepl = do
-    putStrLn "\n(✿ ╹◡ ╹) Welcome to normie-scheme 0.1.0!"
+    putStrLn "\n(✿ ╹◡ ╹) Welcome to meme 0.1.0!"
     putStrLn "Copyright 2020 Norman Liu."
+    putStrLn "This program comes with ABSOLUTELY NO WARRANTY. This is free software, and you are welcome to redistribute it under certain conditions."
     putStrLn "Press Ctrl-D or type `quit` to exit.\n"
     env <- bindPrimitives
     runInputT defaultSettings $ withInterrupt (loop env)
